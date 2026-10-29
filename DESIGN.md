@@ -60,45 +60,60 @@ imports, so its tests run in milliseconds. Spring wraps it in controller → ser
 | Authentication | Login: `DaoAuthenticationProvider` loads the user from `app_user` through `UserAccountService`, checks the BCrypt hash and the API returns an HS256-signed JWT (1 h) carrying role and tenant. Every other request: `JwtAuthenticationFilter` verifies the token, no session and no DB lookup. |
 | Tenant isolation | The tenant comes only from the signed token (`tid` claim), never from the request body or path. Every query filters on it; another tenant's record is a 404, not a 403. Cache keys include the tenant. |
 
+
 ## 4. Hardest flow: nightly reconciliation with the safety brake
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant HR as HR system
+    participant HR as HR System
     participant RS as ReconciliationService
-    participant DE as BucketedDiffEngine
+    participant DE as DiffEngine
     participant DB as MySQL
     participant CX as ChangeExecutor
     participant Ops as Operator
 
-    HR->>RS: POST /hr/snapshots (export.csv)
-    RS->>DB: insert run (RUNNING)
-    loop every line, streamed
-        RS->>RS: parse + validate; bad line -> rejection report (row kept as "present")
-        RS->>DE: row
-        DE->>DE: append to bucket file hash(id) % 64
+    HR->>RS: Upload nightly snapshot CSV
+    RS->>DB: Create run with status RUNNING
+
+    loop For each CSV row
+        RS->>DE: Parse and validate row
+        alt Invalid row
+            DE-->>RS: Record validation error
+            Note over RS,DE: Keep employee marked as present
+        else Valid row
+            DE->>DB: Store row in staging table
+        end
     end
-    loop bucket 0..63
-        DE->>DB: select employee_id, hr_hash where bucket = b and active
-        DE-->>RS: onChanged / onAdded(row)
-        RS->>CX: apply through the version gate
-        CX->>DB: lock row, update employee + outbox (1 tx)
-        DE-->>RS: onMissing(id)
-        RS->>DB: batch insert pending_deactivation
+
+    RS->>DE: Calculate complete snapshot diff
+    DE->>DB: Compare staging rows with active employees
+    DE-->>RS: Return additions, updates and missing employees
+
+    RS->>RS: Evaluate safety brake before applying changes
+
+    alt Missing employees reach safety threshold
+        RS->>DB: Save proposed changes and pending deactivations
+        RS->>DB: Set run status to AWAITING_APPROVAL
+        RS-->>Ops: Send alert with missing employee count
+        Ops->>RS: Approve or reject reconciliation
+        alt Approved
+            RS->>CX: Apply staged changes in batches
+            CX->>DB: Update employees and write outbox events
+            RS->>DB: Mark run as COMPLETED
+        else Rejected
+            RS->>DB: Cancel pending changes
+            RS->>DB: Mark run as REJECTED
+        end
+    else Missing employees below threshold
+        RS->>CX: Apply staged changes and deactivations
+        CX->>DB: Update employees and write outbox events
+        RS->>DB: Mark run as COMPLETED
     end
-    RS->>RS: SafetyBrake.evaluate(active, missing)
-    alt missing >= 30% of active
-        RS->>DB: run = AWAITING_APPROVAL (nobody deactivated)
-        RS-->>Ops: ALERT log + rostersync_reconciliation_brake_tripped_total
-        Ops->>RS: POST /ops/reconciliations/{id}/approve (or /reject)
-        RS->>CX: deactivate each pending id (pages of 500)
-    else below threshold
-        RS->>CX: deactivate each pending id
-    end
-    CX->>DB: employee inactive + EMPLOYEE_DEACTIVATED in outbox (1 tx each)
-    Note over DB: relay publishes later -> bookings cancelled, seats freed
+
+    Note over DB: Outbox relay publishes events after commit
 ```
+
 
 ## 5. Failure modes
 
