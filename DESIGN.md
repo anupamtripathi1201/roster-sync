@@ -61,6 +61,8 @@ imports, so its tests run in milliseconds. Spring wraps it in controller → ser
 | Tenant isolation | The tenant comes only from the signed token (`tid` claim), never from the request body or path. Every query filters on it; another tenant's record is a 404, not a 403. Cache keys include the tenant. |
 
 
+## 4. Hardest flow: nightly reconciliation with the safety brake
+
 ```mermaid
 sequenceDiagram
     autonumber
