@@ -6,7 +6,7 @@ public interface EventPublisher {
     void publish(ChangeEvent event);
 
     interface Subscriber{
-        boolean support(ChangeEvent.Type type);
+        boolean supports(ChangeEvent.Type type);
         void handle(ChangeEvent event);
     }
 
