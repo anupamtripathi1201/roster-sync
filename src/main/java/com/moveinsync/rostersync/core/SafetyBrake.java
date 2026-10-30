@@ -11,7 +11,7 @@ public final class SafetyBrake {
 
     private final double threshold;
 
-    /** @param threshold e.g. 0.30: trip when 30% or more of active employees are missing from the file */
+    // threshold e.g. 0.30: trip when 30% or more of active employees are missing from the file
     public SafetyBrake(double threshold) {
         if (threshold <= 0 || threshold > 1) {
             throw new IllegalArgumentException("threshold must be in (0, 1]");
