@@ -20,7 +20,7 @@ public class InProcessEventBus implements EventPublisher {
     @Override
     public void publish(ChangeEvent event){
         for(Subscriber s : subscribers){
-            if(s.support(event.type())){
+            if(s.supports(event.type())){
                 s.handle(event);
             }
         }
