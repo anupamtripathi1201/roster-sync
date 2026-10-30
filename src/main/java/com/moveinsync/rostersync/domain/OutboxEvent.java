@@ -12,7 +12,7 @@ import java.time.Instant;
 // A change event waiting to be (or already) published. Written in the same transaction as the change.
 @Entity
 @Table(name = "outbox_event")
-public class OutBoxEvent {
+public class OutboxEvent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,10 +38,10 @@ public class OutBoxEvent {
     @Column(name = "last_error")
     private String lastError;
 
-    protected OutBoxEvent() {
+    protected OutboxEvent() {
     }
 
-    public OutBoxEvent(String eventId, String tenantId, String employeeId, String eventType, String payload, Instant now) {
+    public OutboxEvent(String eventId, String tenantId, String employeeId, String eventType, String payload, Instant now) {
         this.eventId = eventId;
         this.tenantId = tenantId;
         this.employeeId = employeeId;
