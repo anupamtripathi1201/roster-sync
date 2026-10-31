@@ -1,0 +1,32 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: rostersync
+      MYSQL_USER: roster
+      MYSQL_PASSWORD: roster@123
+      MYSQL_ROOT_PASSWORD: rootpw@123
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroster", "-proster@123"]   # FIX 1: 127.0.0.1, not localhost
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build: .
+    restart: on-failure
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_USER: roster
+      DB_PASSWORD: roster@123
+      JWT_SECRET: z2q3x45ec6v7tb8n9jm3wx45ce6n8-local-demo-key
+      DEMO_DATA: "true"
+      FAILURE_INJECTION: "true"
+      BRAKE_THRESHOLD: "0.30"
+    ports:
+      - "8080:8080"
